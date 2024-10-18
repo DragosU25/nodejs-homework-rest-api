@@ -1,45 +1,34 @@
-const fs = require("fs").promises;
-const path = require("path");
-const { v4: uuidv4 } = require("uuid");
-
-const contactsPath = path.join(__dirname, "./contacts.json");
+// models/contacts.js
+const Contact = require("./contact");
+const mongoose = require("mongoose");
 
 async function listContacts() {
-  const data = await fs.readFile(contactsPath, "utf-8");
-  return JSON.parse(data);
+  return await Contact.find();
 }
 
 async function getById(contactId) {
-  const contacts = await listContacts();
-  return contacts.find((contact) => contact.id === contactId);
+  if (!mongoose.Types.ObjectId.isValid(contactId)) {
+    throw new Error("Invalid ID format");
+  }
+  return Contact.findById(contactId);
 }
 
 async function removeContact(contactId) {
-  const contacts = await listContacts();
-  const newContacts = contacts.filter((contact) => contact.id !== contactId);
-  await fs.writeFile(contactsPath, JSON.stringify(newContacts, null, 2));
-  return contacts.length !== newContacts.length;
+  const result = await Contact.findByIdAndRemove(contactId);
+  return result !== null;
 }
 
 async function addContact({ name, email, phone }) {
-  const contacts = await listContacts();
-  const newContact = { id: uuidv4(), name, email, phone };
-  contacts.push(newContact);
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
-  return newContact;
+  const newContact = new Contact({ name, email, phone });
+  return newContact.save();
 }
 
 async function updateContact(contactId, updateData) {
-  const contacts = await listContacts();
-  const contactIndex = contacts.findIndex(
-    (contact) => contact.id === contactId
-  );
-  if (contactIndex === -1) {
-    return null;
-  }
-  contacts[contactIndex] = { ...contacts[contactIndex], ...updateData };
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
-  return contacts[contactIndex];
+  return Contact.findByIdAndUpdate(contactId, updateData, { new: true });
+}
+
+async function updateStatusContact(contactId, favorite) {
+  return Contact.findByIdAndUpdate(contactId, { favorite }, { new: true });
 }
 
 module.exports = {
@@ -48,4 +37,5 @@ module.exports = {
   removeContact,
   addContact,
   updateContact,
+  updateStatusContact,
 };
