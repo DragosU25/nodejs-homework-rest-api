@@ -1,13 +1,12 @@
-// routes/api/contacts.js
 const express = require("express");
 const router = express.Router();
 const contactsModel = require("../../models/contacts");
+const auth = require("../../middlewares/auth"); // Importă middleware-ul de autentificare
 
 // @ GET /api/contacts
-router.get("/", async (req, res, next) => {
+router.get("/", auth, async (req, res, next) => {
   try {
-    const contacts = await contactsModel.listContacts();
-    console.log(contacts);
+    const contacts = await contactsModel.listContacts(req.user._id);
     res.status(200).json(contacts);
   } catch (error) {
     next(error);
@@ -15,9 +14,9 @@ router.get("/", async (req, res, next) => {
 });
 
 // @ GET /api/contacts/:id
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", auth, async (req, res, next) => {
   try {
-    const contact = await contactsModel.getById(req.params.id);
+    const contact = await contactsModel.getById(req.params.id, req.user._id);
     if (contact) {
       res.status(200).json(contact);
     } else {
@@ -29,18 +28,15 @@ router.get("/:id", async (req, res, next) => {
 });
 
 // @ POST /api/contacts
-router.post("/", async (req, res, next) => {
+router.post("/", auth, async (req, res, next) => {
   try {
     const { name, email, phone } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ message: "missing required name field" });
-    } else if (!email) {
-      return res.status(400).json({ message: "missing required email field" });
-    } else if (!phone) {
-      return res.status(400).json({ message: "missing required phone field" });
-    }
-    const newContact = await contactsModel.addContact({ name, email, phone });
+    const newContact = await contactsModel.addContact({
+      name,
+      email,
+      phone,
+      owner: req.user._id,
+    });
     res.status(201).json(newContact);
   } catch (error) {
     next(error);
@@ -48,9 +44,12 @@ router.post("/", async (req, res, next) => {
 });
 
 // @ DELETE /api/contacts/:id
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", auth, async (req, res, next) => {
   try {
-    const contact = await contactsModel.removeContact(req.params.id);
+    const contact = await contactsModel.removeContact(
+      req.params.id,
+      req.user._id
+    );
     if (contact) {
       res.status(200).json({ message: "contact deleted" });
     } else {
@@ -62,15 +61,13 @@ router.delete("/:id", async (req, res, next) => {
 });
 
 // @ PUT /api/contacts/:id
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", auth, async (req, res, next) => {
   try {
     const updateData = req.body;
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ message: "missing fields" });
-    }
     const updatedContact = await contactsModel.updateContact(
       req.params.id,
-      updateData
+      updateData,
+      req.user._id
     );
     if (updatedContact) {
       res.status(200).json(updatedContact);
@@ -83,7 +80,7 @@ router.put("/:id", async (req, res, next) => {
 });
 
 // @ PATCH /api/contacts/:id/favorite
-router.patch("/:id/favorite", async (req, res, next) => {
+router.patch("/:id/favorite", auth, async (req, res, next) => {
   try {
     const { favorite } = req.body;
     if (typeof favorite !== "boolean") {
@@ -91,7 +88,8 @@ router.patch("/:id/favorite", async (req, res, next) => {
     }
     const updatedContact = await contactsModel.updateStatusContact(
       req.params.id,
-      favorite
+      favorite,
+      req.user._id
     );
     if (updatedContact) {
       res.status(200).json(updatedContact);
