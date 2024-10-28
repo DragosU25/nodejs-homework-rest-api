@@ -134,11 +134,7 @@ router.patch(
       );
 
       try {
-        // Load and process the image
         const image = await Jimp.read(tempFilePath);
-
-        // Log the image to confirm it was loaded successfully
-        console.log("Image loaded successfully, processing resize");
 
         // Resize to 250x250 pixels
         // await image.resize(250, 250).writeAsync(publicAvatarPath);

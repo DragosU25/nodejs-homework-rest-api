@@ -12,7 +12,7 @@ const app = express();
 app.use(logger("dev"));
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // Configurați distribuirea fișierelor statice
+app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/api/contacts", contactsRouter);
 app.use("/api/users", usersRouter);
