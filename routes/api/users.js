@@ -2,8 +2,38 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../../models/user");
+const gravatar = require("gravatar");
+const multer = require("multer");
+const { Jimp } = require("jimp");
+const path = require("path");
+const fs = require("fs").promises;
 const auth = require("../../middlewares/auth");
+const User = require("../../models/user");
+
+const storage = multer.diskStorage({
+  destination: "tmp/",
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${file.fieldname}-${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|gif/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(
+      path.extname(file.originalname).toLowerCase()
+    );
+
+    if (mimetype && extname) {
+      cb(null, true);
+    } else {
+      cb(new Error("Error: File type not supported!"), false);
+    }
+  },
+});
 
 // @ POST /users/signup
 router.post("/signup", async (req, res, next) => {
@@ -16,13 +46,15 @@ router.post("/signup", async (req, res, next) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 8);
-    const newUser = new User({ email, password: hashedPassword });
+    const avatarURL = gravatar.url(email, { s: "250", d: "retro" }, true);
+    const newUser = new User({ email, password: hashedPassword, avatarURL });
     await newUser.save();
 
     res.status(201).json({
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL,
       },
     });
   } catch (error) {
@@ -79,4 +111,49 @@ router.get("/current", auth, async (req, res, next) => {
   }
 });
 
+// @ PATCH /users/avatars
+router.patch(
+  "/avatars",
+  auth,
+  upload.single("avatar"),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "File not provided" });
+      }
+
+      const tempFilePath = req.file.path;
+      const avatarName = `${req.user._id}_${Date.now()}${path.extname(
+        req.file.originalname
+      )}`;
+      const avatarURL = `/avatars/${avatarName}`;
+      const publicAvatarPath = path.join(
+        __dirname,
+        "../../public/avatars",
+        avatarName
+      );
+
+      try {
+        const image = await Jimp.read(tempFilePath);
+
+        // Resize to 250x250 pixels
+        // await image.resize(250, 250).writeAsync(publicAvatarPath);
+
+        // Remove the temporary file
+        await fs.unlink(tempFilePath);
+
+        // Update user's avatar URL and save in the database
+        req.user.avatarURL = avatarURL;
+        await req.user.save();
+
+        return res.status(200).json({ avatarURL });
+      } catch (error) {
+        console.error("Error during image processing:", error);
+        return res.status(500).json({ message: "Image processing failed" });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 module.exports = router;
