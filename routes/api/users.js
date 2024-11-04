@@ -46,9 +46,9 @@ const upload = multer({
 const sendVerificationEmail = async (email, verificationToken, req) => {
   const verificationLink = `${req.protocol}://${req.get(
     "host"
-  )}/users/verify/${verificationToken}`;
+  )}/api/users/verify/${verificationToken}`;
   const msg = {
-    to: "ungureanud6@gmail.com",
+    to: email, // Trimite la adresa utilizatorului
     from: process.env.SENDGRID_VERIFIED_SENDER,
     subject: "Verify your email address",
     text: `Please verify your email address by clicking on the following link: ${verificationLink}`,
@@ -106,7 +106,39 @@ router.get("/verify/:verificationToken", async (req, res, next) => {
     user.verify = true;
     await user.save();
 
-    res.status(200).json({ message: "Email verified successfully" });
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/verify", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "missing required field email" });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.verify) {
+      return res
+        .status(400)
+        .json({ message: "Verification has already been passed" });
+    }
+
+    const verificationToken = uuidv4();
+    user.verificationToken = verificationToken;
+    await user.save();
+
+    await sendVerificationEmail(email, verificationToken, req);
+
+    res.status(200).json({ message: "Verification email sent" });
   } catch (error) {
     next(error);
   }
